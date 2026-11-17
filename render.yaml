@@ -1,0 +1,20 @@
+# Render Blueprint for the FastAPI backend (free plan).
+# Free web services have no persistent disk: the SQLite DB is re-seeded from
+# backend/prisma/dev.db on every restart/redeploy.
+services:
+  - type: web
+    name: ai-guard-backend
+    runtime: docker
+    plan: free
+    branch: deploy
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false

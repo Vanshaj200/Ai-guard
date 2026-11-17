@@ -3,3 +3,4 @@ backend/
 Dockerfile.backend
 railway.json
 **/__pycache__
+render.yaml
