@@ -414,11 +414,22 @@ async def scan_family(sessionId: str, agentId: str, category: str, model: str = 
     gen = run_family_scan(sessionId, agentId, category, model_name=model)
     
     async def sse_generator():
-        async for data in gen:
-            yield {
-                "event": data.get("event", "message"),
-                "data": json.dumps(data.get("data", {}))
-            }
+        import time, traceback
+        t0 = time.monotonic()
+        n = 0
+        try:
+            async for data in gen:
+                n += 1
+                print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s event={data.get('event')}", flush=True)
+                yield {
+                    "event": data.get("event", "message"),
+                    "data": json.dumps(data.get("data", {}))
+                }
+            print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s generator finished after {n} events", flush=True)
+        except BaseException as exc:
+            print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s ENDED by {type(exc).__name__}: {exc!r}", flush=True)
+            traceback.print_exc()
+            raise
             
     return EventSourceResponse(sse_generator())
 
