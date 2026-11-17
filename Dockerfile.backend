@@ -1,0 +1,28 @@
+# FastAPI backend image for Railway. Build context is the repo root because the
+# backend imports the sibling `redguard/` package.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PRISMA_HOME_DIR=/opt/prisma
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY backend/requirements.txt backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+COPY redguard/ redguard/
+COPY backend/ backend/
+
+# Generate the Prisma client and fetch the query engine at build time
+RUN cd backend && prisma generate --schema prisma/schema.prisma
+
+RUN chmod +x backend/start.sh
+
+WORKDIR /app/backend
+EXPOSE 8000
+CMD ["./start.sh"]

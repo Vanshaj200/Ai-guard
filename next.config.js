@@ -1,3 +1,7 @@
+// Where the FastAPI backend lives. Locally it's 127.0.0.1:8000; on Vercel set
+// BACKEND_URL to the Railway service URL (e.g. https://ai-guard-backend.up.railway.app).
+const BACKEND_URL = (process.env.BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {
@@ -8,7 +12,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*', // Proxy to FastAPI backend
+        destination: `${BACKEND_URL}/api/:path*`, // Proxy to FastAPI backend
       },
     ]
   },

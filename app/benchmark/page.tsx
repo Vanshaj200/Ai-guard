@@ -224,8 +224,11 @@ export default function BenchmarkPage() {
           : ''
 
         await new Promise<void>((resolve) => {
+          // Long-lived SSE streams go straight to the backend when NEXT_PUBLIC_BACKEND_URL
+          // is set (production), bypassing the hosting proxy's response timeout.
+          const sseBase = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, '')
           const evtSource = new EventSource(
-            `/api/scan/family?sessionId=${encodeURIComponent(data.sessionId)}&agentId=${encodeURIComponent(selectedAgent)}&category=${encodeURIComponent(familyName)}${modelQuery}`
+            `${sseBase}/api/scan/family?sessionId=${encodeURIComponent(data.sessionId)}&agentId=${encodeURIComponent(selectedAgent)}&category=${encodeURIComponent(familyName)}${modelQuery}`
           )
           let finishedCleanly = false
 

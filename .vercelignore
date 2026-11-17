@@ -1,0 +1,5 @@
+backend/
+.claude/
+Dockerfile.backend
+railway.json
+**/__pycache__
