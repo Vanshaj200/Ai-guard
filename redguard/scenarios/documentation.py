@@ -5,6 +5,7 @@ Documentation Page Scenario
 Simulates a documentation page context for probe execution.
 """
 
+from typing import Any, Dict
 from redguard.scenarios.base import Scenario, ScenarioTemplate, ScenarioType, register_scenario
 
 

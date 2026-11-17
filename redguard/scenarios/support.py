@@ -5,6 +5,7 @@ Support Ticket Scenario
 Simulates a support ticket context for probe execution.
 """
 
+from typing import Any, Dict
 from redguard.scenarios.base import Scenario, ScenarioTemplate, ScenarioType, register_scenario
 
 

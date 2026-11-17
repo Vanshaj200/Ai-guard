@@ -216,10 +216,13 @@ async def create_probe(request: Request):
 async def delete_probe(probe_id: str):
     prisma = await get_db()
     try:
-        await prisma.customprobe.delete(where={"id": probe_id})
-        return {"status": "deleted"}
+        deleted = await prisma.customprobe.delete(where={"id": probe_id})
     except Exception:
+        deleted = None
+    # prisma-client-py returns None (no exception) when the record doesn't exist
+    if deleted is None:
         raise HTTPException(status_code=404, detail="Probe not found")
+    return {"status": "deleted"}
 
 @app.put("/api/probes/{probe_id}/toggle")
 async def toggle_probe(probe_id: str):
