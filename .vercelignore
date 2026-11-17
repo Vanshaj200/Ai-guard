@@ -4,3 +4,7 @@ Dockerfile.backend
 railway.json
 **/__pycache__
 render.yaml
+.env
+.env.local
+.next/
+node_modules/
