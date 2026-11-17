@@ -406,31 +406,64 @@ async def start_scan(request: Request):
         "families": init_data["families"]
     }
 
+# ── Family scans run as background tasks ─────────────────────────────────────
+# The probes run independently of the HTTP connection, and every SSE event gets a
+# numeric id. If the browser's stream drops (proxies, flaky networks), EventSource
+# reconnects automatically with a Last-Event-ID header and resumes where it left
+# off instead of aborting the run or re-running probes.
+_family_runs: dict[tuple[str, str], dict] = {}
+
+
+async def _run_family_in_background(run: dict, session_id: str, agent_id: str, category: str, model: str | None):
+    try:
+        async for data in run_family_scan(session_id, agent_id, category, model_name=model):
+            run["events"].append(data)
+            run["changed"].set()
+    except Exception as exc:  # surface unexpected failures to the client instead of a silent stop
+        print(f"[scan {session_id[:8]} {category}] failed: {exc!r}", flush=True)
+        run["events"].append({"event": "scan_error", "data": {"error": f"Scan failed: {exc}"}})
+    finally:
+        run["done"] = True
+        run["changed"].set()
+
+
 @app.get("/api/scan/family")
-async def scan_family(sessionId: str, agentId: str, category: str, model: str = None):
+async def scan_family(request: Request, sessionId: str, agentId: str, category: str, model: str = None):
     if not all([sessionId, agentId, category]):
         raise HTTPException(status_code=400, detail="Missing required parameters")
-        
-    gen = run_family_scan(sessionId, agentId, category, model_name=model)
-    
+
+    key = (sessionId, category)
+    run = _family_runs.get(key)
+    if run is None:
+        run = {"events": [], "done": False, "changed": asyncio.Event()}
+        _family_runs[key] = run
+        run["task"] = asyncio.create_task(
+            _run_family_in_background(run, sessionId, agentId, category, model)
+        )
+
+    last_id = request.headers.get("last-event-id", "")
+    start = int(last_id) + 1 if last_id.isdigit() else 0
+    if start:
+        print(f"[scan {sessionId[:8]} {category}] client resumed after event {last_id}", flush=True)
+
     async def sse_generator():
-        import time, traceback
-        t0 = time.monotonic()
-        n = 0
-        try:
-            async for data in gen:
-                n += 1
-                print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s event={data.get('event')}", flush=True)
+        i = start
+        while True:
+            while i < len(run["events"]):
+                data = run["events"][i]
                 yield {
+                    "id": str(i),
                     "event": data.get("event", "message"),
-                    "data": json.dumps(data.get("data", {}))
+                    "data": json.dumps(data.get("data", {})),
                 }
-            print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s generator finished after {n} events", flush=True)
-        except BaseException as exc:
-            print(f"[sse {sessionId[:8]} {category}] +{time.monotonic()-t0:.1f}s ENDED by {type(exc).__name__}: {exc!r}", flush=True)
-            traceback.print_exc()
-            raise
-            
+                i += 1
+            if run["done"]:
+                return
+            run["changed"].clear()
+            if i < len(run["events"]) or run["done"]:
+                continue
+            await run["changed"].wait()
+
     return EventSourceResponse(sse_generator())
 
 
@@ -443,6 +476,13 @@ async def finalize_scan_route(request: Request):
     if not session_id:
         raise HTTPException(status_code=400, detail="Missing sessionId")
         
+    # Stop any family still running for this session (e.g. the user aborted) and free its buffer
+    for key in [k for k in _family_runs if k[0] == session_id]:
+        run = _family_runs.pop(key)
+        task = run.get("task")
+        if task and not task.done():
+            task.cancel()
+
     results = await finalize_scan(session_id, final_status=final_status)
     await generate_report_for_session(session_id)
     return results

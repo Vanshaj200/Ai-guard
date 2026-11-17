@@ -231,6 +231,8 @@ export default function BenchmarkPage() {
             `${sseBase}/api/scan/family?sessionId=${encodeURIComponent(data.sessionId)}&agentId=${encodeURIComponent(selectedAgent)}&category=${encodeURIComponent(familyName)}${modelQuery}`
           )
           let finishedCleanly = false
+          let reconnectAttempts = 0
+          evtSource.onopen = () => { reconnectAttempts = 0 }
 
           evtSource.addEventListener('probe_result', (e) => {
             const payload = JSON.parse(e.data)
@@ -309,11 +311,20 @@ export default function BenchmarkPage() {
           })
 
           evtSource.onerror = () => {
-            if (!finishedCleanly && !abortedError) {
-              abortedError = 'SSE stream disconnected from backend during probe evaluation.'
+            if (finishedCleanly || abortedError) {
+              evtSource.close()
+              resolve()
+              return
             }
-            evtSource.close()
-            resolve()
+            // A dropped stream is retried automatically by EventSource; the backend keeps
+            // running the probes and resumes from the Last-Event-ID it receives. Only give
+            // up if the browser stops retrying or several reconnects fail in a row.
+            reconnectAttempts += 1
+            if (evtSource.readyState === EventSource.CLOSED || reconnectAttempts > 8) {
+              abortedError = 'SSE stream disconnected from backend during probe evaluation.'
+              evtSource.close()
+              resolve()
+            }
           }
         })
       }
