@@ -28,7 +28,7 @@ export default function ScenariosPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
-                  {scen.probeCount} Probes
+                  {benchmarkDataService.getScenarioProbeCount(scen.id)} Probes
                 </span>
                 <span
                   className={`badge-semantic ${

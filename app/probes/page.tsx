@@ -1,19 +1,30 @@
 "use client"
-import React, { useState } from 'react'
+import React, { Suspense, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { benchmarkDataService, Probe } from '@/lib/data-service'
 import ProbeDrawer from '@/components/ProbeDrawer'
 import { Target, Search, Filter, ExternalLink } from 'lucide-react'
 
 export default function ProbesIndexPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs">Loading probes...</div>}>
+      <ProbesIndex />
+    </Suspense>
+  )
+}
+
+function ProbesIndex() {
   const allProbes: Probe[] = benchmarkDataService.getAllProbes()
   const families = benchmarkDataService.getAttackFamilies()
   const scenarios = benchmarkDataService.getScenarios()
 
+  // Initial filters come from ?scenario= / ?family= / ?difficulty= (e.g. Scenarios page links)
+  const params = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
-  const [familyFilter, setFamilyFilter] = useState('all')
-  const [scenarioFilter, setScenarioFilter] = useState('all')
-  const [difficultyFilter, setDifficultyFilter] = useState('all')
+  const [familyFilter, setFamilyFilter] = useState(params.get('family') ?? 'all')
+  const [scenarioFilter, setScenarioFilter] = useState(params.get('scenario') ?? 'all')
+  const [difficultyFilter, setDifficultyFilter] = useState(params.get('difficulty') ?? 'all')
   const [selectedProbe, setSelectedProbe] = useState<Probe | null>(null)
 
   const filteredProbes = allProbes.filter(p => {
@@ -23,7 +34,7 @@ export default function ProbesIndexPage() {
       p.prompt.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchesFamily = familyFilter === 'all' || p.attack_family.toLowerCase() === familyFilter.toLowerCase()
-    const matchesScenario = scenarioFilter === 'all' || p.scenario.toLowerCase() === scenarioFilter.toLowerCase()
+    const matchesScenario = scenarioFilter === 'all' || benchmarkDataService.probeMatchesScenario(p.scenario, scenarioFilter)
     const matchesDifficulty = difficultyFilter === 'all' || p.difficulty.toLowerCase() === difficultyFilter.toLowerCase()
 
     return matchesSearch && matchesFamily && matchesScenario && matchesDifficulty

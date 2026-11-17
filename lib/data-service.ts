@@ -284,6 +284,18 @@ class BenchmarkDataService {
     return SCENARIOS
   }
 
+  // Probe datasets use suffixed scenario names (github_issue, email_assistant, ...)
+  // while scenario cards use short ids (github, email, ...).
+  public probeMatchesScenario(probeScenario: string, scenarioId: string): boolean {
+    const s = (probeScenario || '').toLowerCase()
+    const id = scenarioId.toLowerCase()
+    return s === id || s.startsWith(`${id}_`)
+  }
+
+  public getScenarioProbeCount(scenarioId: string): number {
+    return this.getAllProbes().filter(p => this.probeMatchesScenario(p.scenario, scenarioId)).length
+  }
+
   // API Call: Fetch Stats
   public async fetchStats(): Promise<any> {
     const key = 'api_stats'

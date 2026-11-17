@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Probe } from '@/lib/data-service'
 import { X, ExternalLink, ShieldAlert, CheckCircle2, Copy, Check } from 'lucide-react'
@@ -11,6 +11,13 @@ interface ProbeDrawerProps {
 
 export default function ProbeDrawer({ probe, onClose }: ProbeDrawerProps) {
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!probe) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [probe, onClose])
 
   if (!probe) return null
 

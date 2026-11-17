@@ -195,7 +195,7 @@ export default function ModelComparisonPage() {
               <BarChart data={stackedBarData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                 <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
-                <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} domain={[0, 100]} />
+                <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} allowDataOverflow />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--surface-overlay)', borderColor: 'var(--border-default)', fontSize: '11px' }} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="Resisted" stackId="a" fill="#10b981" />
