@@ -77,11 +77,11 @@ export function searchBenchmark(query: string): SearchResultItem[] {
 
   // 4. Search Models & Leaderboards
   const models = [
-    { id: 'nemotron_3_ultra', name: 'Nemotron-3 Ultra Guard' },
-    { id: 'llama3_3_70b_agent', name: 'Llama 3.3 70B Instruct' },
-    { id: 'deepseek_flash_agent', name: 'DeepSeek Flash 2.5' },
+    { id: 'nemotron_3_ultra', name: 'Nemotron-3 Ultra (550B)' },
+    { id: 'llama3_3_70b_agent', name: 'Nemotron-3.5 Lightning (30B)' },
+    { id: 'deepseek_flash_agent', name: 'Nemotron-3.5 Bolt (Fast)' },
     { id: 'ollama_local_agent', name: 'Ollama Local Agent' },
-    { id: 'nemotron_super_agent', name: 'Custom Policy Super Agent' },
+    { id: 'nemotron_super_agent', name: 'Nemotron-3.5 Super (120B)' },
   ]
   models.forEach(m => {
     if (m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)) {

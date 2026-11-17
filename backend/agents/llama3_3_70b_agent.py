@@ -1,7 +1,8 @@
 """
-Ai-guard Agent — Meta Llama 3.3 (70B Instruct)
-─────────────────────────────────────────────────
-Powered by NVIDIA NIM: meta/llama-3.3-70b-instruct.
+Ai-guard Agent — Nemotron-3.5 Lightning (30B)
+──────────────────────────────────────────────
+Powered by NVIDIA NIM: nvidia/nemotron-3.5-lightning-30b-a3b.
+(The module id "llama3_3_70b_agent" is kept so stored runs stay linked.)
 """
 
 from __future__ import annotations
@@ -35,5 +36,5 @@ def is_configured() -> bool:
 
 
 async def invoke(prompt: str, model_name: Optional[str] = None) -> str:
-    """Send a prompt dynamically to Llama 3.3 agent and return text response."""
+    """Send a prompt to the Nemotron-3.5 Lightning agent and return its text response."""
     return await invoke_nvidia_agent(MODEL_NAME, SYSTEM_PROMPT, prompt, model_name=model_name)

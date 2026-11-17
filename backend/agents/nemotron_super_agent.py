@@ -1,7 +1,7 @@
 """
 Ai-guard Agent — Nemotron 3 Super (120B)
 ──────────────────────────────────────────
-Powered by NVIDIA NIM: nvidia/nemotron-3-super-120b-a12b.
+Powered by NVIDIA NIM: nvidia/nemotron-3.5-super-vl-120b-a12b.
 """
 
 from __future__ import annotations

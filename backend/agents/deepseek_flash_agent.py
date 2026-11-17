@@ -1,7 +1,8 @@
 """
-Ai-guard Agent — DeepSeek V4 Flash
-───────────────────────────────────
-Powered by NVIDIA NIM: deepseek-ai/deepseek-v4-flash.
+Ai-guard Agent — Nemotron-3.5 Bolt (Fast)
+──────────────────────────────────────────
+Powered by NVIDIA NIM: nvidia/nemotron-3.5-bolt-e4b.
+(The module id "deepseek_flash_agent" is kept so stored runs stay linked.)
 """
 
 from __future__ import annotations
@@ -34,5 +35,5 @@ def is_configured() -> bool:
 
 
 async def invoke(prompt: str, model_name: Optional[str] = None) -> str:
-    """Send a prompt dynamically to DeepSeek V4 Flash agent and return text response."""
+    """Send a prompt to the Nemotron-3.5 Bolt agent and return its text response."""
     return await invoke_nvidia_agent(MODEL_NAME, SYSTEM_PROMPT, prompt, model_name=model_name)

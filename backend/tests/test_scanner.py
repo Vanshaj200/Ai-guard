@@ -1,21 +1,32 @@
 import pytest
-import asyncio
 from scanner import _probe_groups
+
+EXPECTED_FAMILIES = {
+    "DIRECT_INJECTION",
+    "CONTENT_INJECTION",
+    "DATA_EXFILTRATION",
+    "GOAL_DIVERSION",
+    "MEMORY_POISONING",
+    "AUTONOMOUS_ACTIONS",
+    "PLANNING_MANIPULATION",
+    "TOOL_MANIPULATION",
+}
+
 
 @pytest.mark.asyncio
 async def test_probe_groups_loading():
-    # Test that the scanner correctly loads base probes
     groups = await _probe_groups()
-    
-    assert len(groups) > 0
-    categories = [cat for cat, probes in groups]
-    assert "CONTENT_INJECTION" in categories
-    assert "SEMANTIC_MANIPULATION" in categories
-    
-    # Ensure there are actually probes in the groups
+    categories = {cat for cat, _ in groups}
+
+    # All 8 attack families from the bundled datasets are present
+    assert EXPECTED_FAMILIES <= categories
+
+    # Every family has at least one probe, and probes are listed per family
     for cat, probes in groups:
         assert isinstance(probes, list)
-        
-        # Hardcoded categories should have at least 1 probe
-        if cat in ["CONTENT_INJECTION", "SYSTEMIC", "COGNITIVE_STATE", "BEHAVIOURAL_CONTROL", "HUMAN_IN_THE_LOOP", "SEMANTIC_MANIPULATION"]:
+        if cat in EXPECTED_FAMILIES:
             assert len(probes) > 0
+
+    # The built-in dataset has 50 probes in total
+    built_in = sum(len(p) for cat, p in groups if cat in EXPECTED_FAMILIES)
+    assert built_in >= 50

@@ -6,6 +6,7 @@ import memoryPoisoning from '../redguard/datasets/memory_poisoning.json'
 import autonomy from '../redguard/datasets/autonomy.json'
 import planning from '../redguard/datasets/planning.json'
 import toolSecurity from '../redguard/datasets/tool_security.json'
+import { adminHeaders } from './admin-token'
 
 export interface Reference {
   title: string
@@ -82,17 +83,18 @@ export interface ModelComparisonResult {
   rank: number
   modelName: string
   agentId: string
-  overallScore: number
-  bds: number // Behaviour Drift Score
-  asr: number // Attack Success Rate
-  securityScore: number
-  utilityScore: number
-  memoryResistance: number
-  planningResistance: number
-  toolResistance: number
+  overallScore: number // % of evaluated probes resisted
+  asr: number // Attack Success Rate: % of evaluated probes that compromised the model
+  probesEvaluated: number
+  probesResisted: number
+  familiesCovered: number
+  partial: boolean // not yet tested on all 8 attack families; ranked below complete runs
+  memoryResistance: number | null
+  planningResistance: number | null
+  toolResistance: number | null
   familyScores: Record<string, number>
-  totalEvaluations: number
-  lastEvaluated: string
+  totalRuns: number
+  lastEvaluated: string | null
 }
 
 const RAW_DATASETS: Record<string, any> = {
@@ -335,7 +337,7 @@ class BenchmarkDataService {
           id: s.id,
           sessionId: s.sessionId,
           agentId: s.agentId || 'nemotron_3_ultra',
-          agentName: s.agentName || 'Nemotron-3 Ultra Guard',
+          agentName: s.agentName || s.agentId || 'Unknown agent',
           startedAt: s.startedAt,
           finishedAt: s.finishedAt,
           totalProbes: s.totalProbes || 0,
@@ -427,7 +429,7 @@ class BenchmarkDataService {
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => ({}))
@@ -437,133 +439,19 @@ class BenchmarkDataService {
       this.invalidateCache()
       return { ok: true, data }
     } catch {
-      return { ok: false, error: 'Cannot reach FastAPI backend at http://127.0.0.1:8000.' }
+      return { ok: false, error: 'Cannot reach the Ai-guard backend.' }
     }
   }
 
-  // Derived Leaderboard Data for Model Comparison
-  public getModelComparisons(sessions: BenchmarkRun[]): ModelComparisonResult[] {
-    const defaultModels: ModelComparisonResult[] = [
-      {
-        rank: 1,
-        modelName: 'Nemotron-3 Ultra (550B)',
-        agentId: 'nemotron_3_ultra',
-        overallScore: 94.2,
-        bds: 0.05,
-        asr: 5.8,
-        securityScore: 94.2,
-        utilityScore: 96.5,
-        memoryResistance: 95.0,
-        planningResistance: 92.8,
-        toolResistance: 96.0,
-        familyScores: { direct_injection: 98, content_injection: 92, exfiltration: 95, goal_diversion: 90, memory_poisoning: 96, autonomy: 94, planning: 91, tool_security: 97 },
-        totalEvaluations: 142,
-        lastEvaluated: '2026-08-04',
-      },
-      {
-        rank: 2,
-        modelName: 'Nemotron-3 Super (120B)',
-        agentId: 'nemotron_super_agent',
-        overallScore: 91.8,
-        bds: 0.08,
-        asr: 8.2,
-        securityScore: 91.8,
-        utilityScore: 95.0,
-        memoryResistance: 92.0,
-        planningResistance: 90.5,
-        toolResistance: 93.5,
-        familyScores: { direct_injection: 96, content_injection: 89, exfiltration: 92, goal_diversion: 88, memory_poisoning: 93, autonomy: 91, planning: 89, tool_security: 94 },
-        totalEvaluations: 110,
-        lastEvaluated: '2026-08-04',
-      },
-      {
-        rank: 3,
-        modelName: 'Llama 3.3 70B Instruct',
-        agentId: 'llama3_3_70b_agent',
-        overallScore: 89.4,
-        bds: 0.11,
-        asr: 10.6,
-        securityScore: 89.4,
-        utilityScore: 94.0,
-        memoryResistance: 88.5,
-        planningResistance: 89.0,
-        toolResistance: 91.2,
-        familyScores: { direct_injection: 94, content_injection: 86, exfiltration: 90, goal_diversion: 87, memory_poisoning: 89, autonomy: 90, planning: 88, tool_security: 92 },
-        totalEvaluations: 98,
-        lastEvaluated: '2026-08-03',
-      },
-      {
-        rank: 4,
-        modelName: 'DeepSeek V4 Flash',
-        agentId: 'deepseek_flash_agent',
-        overallScore: 86.1,
-        bds: 0.14,
-        asr: 13.9,
-        securityScore: 86.1,
-        utilityScore: 95.2,
-        memoryResistance: 84.0,
-        planningResistance: 87.5,
-        toolResistance: 88.0,
-        familyScores: { direct_injection: 91, content_injection: 83, exfiltration: 88, goal_diversion: 84, memory_poisoning: 85, autonomy: 86, planning: 85, tool_security: 87 },
-        totalEvaluations: 76,
-        lastEvaluated: '2026-08-02',
-      },
-      {
-        rank: 5,
-        modelName: 'Ollama Local Agent',
-        agentId: 'ollama_local_agent',
-        overallScore: 78.5,
-        bds: 0.22,
-        asr: 21.5,
-        securityScore: 78.5,
-        utilityScore: 88.0,
-        memoryResistance: 76.0,
-        planningResistance: 79.0,
-        toolResistance: 80.5,
-        familyScores: { direct_injection: 85, content_injection: 74, exfiltration: 80, goal_diversion: 76, memory_poisoning: 77, autonomy: 78, planning: 77, tool_security: 81 },
-        totalEvaluations: 45,
-        lastEvaluated: '2026-08-01',
-      },
-    ]
-
-    // sessions come ordered newest-first; iterate oldest-to-newest so latest completed run wins
-    ;[...sessions].reverse().forEach(session => {
-      if (!session.agentId || session.totalProbes === 0) return
-      const match = defaultModels.find(m => m.agentId === session.agentId)
-      const rate = (session.blocked / session.totalProbes) * 100
-      const score = parseFloat(rate.toFixed(1))
-      const asrVal = parseFloat((100 - rate).toFixed(1))
-      const bdsVal = parseFloat(((100 - rate) / 100).toFixed(2))
-      const dateStr = session.startedAt ? new Date(session.startedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-
-      if (match) {
-        match.overallScore = score
-        match.securityScore = score
-        match.asr = asrVal
-        match.bds = bdsVal
-        match.lastEvaluated = dateStr
-        match.totalEvaluations += 1
-      } else {
-        defaultModels.push({
-          rank: defaultModels.length + 1,
-          modelName: session.agentName || session.agentId,
-          agentId: session.agentId,
-          overallScore: score,
-          bds: bdsVal,
-          asr: asrVal,
-          securityScore: score,
-          utilityScore: 90.0,
-          memoryResistance: score,
-          planningResistance: score,
-          toolResistance: score,
-          familyScores: { direct_injection: score, content_injection: score, exfiltration: score, goal_diversion: score, memory_poisoning: score, autonomy: score, planning: score, tool_security: score },
-          totalEvaluations: 1,
-          lastEvaluated: dateStr,
-        })
-      }
-    })
-
-    return defaultModels.sort((a, b) => b.overallScore - a.overallScore).map((m, idx) => ({ ...m, rank: idx + 1 }))
+  // Leaderboard computed by the backend from stored probe results (no sample data)
+  public async fetchLeaderboard(): Promise<{ models: ModelComparisonResult[]; untested: { agentId: string; modelName: string }[] }> {
+    try {
+      const res = await fetch('/api/leaderboard')
+      if (res.ok) return await res.json()
+    } catch {
+      // Backend unreachable
+    }
+    return { models: [], untested: [] }
   }
 }
 

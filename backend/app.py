@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import json
 import os
 import sys
@@ -42,6 +43,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Admin protection ─────────────────────────────────────────────────────────
+# Actions that change server state (API keys, policy, custom probes, the raw
+# proxy) need the ADMIN_TOKEN, sent as the X-Admin-Token header. With no
+# ADMIN_TOKEN configured they are only allowed from the local machine, so local
+# development works without a token while a deployed backend fails closed.
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def require_admin(request: Request) -> None:
+    expected = os.getenv("ADMIN_TOKEN", "").strip()
+    if expected:
+        provided = request.headers.get("x-admin-token", "")
+        if not hmac.compare_digest(provided.encode(), expected.encode()):
+            raise HTTPException(status_code=401, detail="Admin token required. Enter it on the Settings page.")
+        return
+    client_host = request.client.host if request.client else ""
+    if client_host not in _LOOPBACK_HOSTS:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin actions are disabled on this server until ADMIN_TOKEN is configured.",
+        )
+
+
+@app.get("/api/admin/check")
+async def admin_check(request: Request):
+    """Lets the UI verify an admin token without changing anything."""
+    require_admin(request)
+    return {"ok": True}
+
+
 @app.get("/api/health")
 async def health_check():
     prisma = await get_db()
@@ -68,6 +99,92 @@ async def get_stats():
         "overallBlockRate": rate,
         "coverageGap": ta
     }
+
+# Probe-event categories → attack-family keys used by the frontend
+_CATEGORY_TO_FAMILY = {
+    "DIRECT_INJECTION": "direct_injection",
+    "CONTENT_INJECTION": "content_injection",
+    "DATA_EXFILTRATION": "exfiltration",
+    "GOAL_DIVERSION": "goal_diversion",
+    "MEMORY_POISONING": "memory_poisoning",
+    "AUTONOMOUS_ACTIONS": "autonomy",
+    "PLANNING_MANIPULATION": "planning",
+    "TOOL_MANIPULATION": "tool_security",
+}
+
+
+@app.get("/api/leaderboard")
+async def leaderboard():
+    """Model ranking computed only from stored probe results.
+
+    For each agent and attack family, the most recent completed run that covered
+    that family supplies the family's result, so a quick single-family test does
+    not replace a full run's numbers for the other families.
+    """
+    prisma = await get_db()
+    sessions = await prisma.session.find_many(
+        where={"status": "COMPLETED"}, order={"startedAt": "desc"}
+    )
+    sessions = [s for s in sessions if s.agentId and (s.totalProbes or 0) > 0]
+    by_id = {s.id: s for s in sessions}
+    events = await prisma.probeevent.find_many(
+        where={"sessionId": {"in": list(by_id)}}
+    ) if by_id else []
+
+    # (agent, family) -> {session_id: [total, blocked]}
+    per_family: dict[tuple[str, str], dict[str, list[int]]] = {}
+    for e in events:
+        s = by_id[e.sessionId]
+        fam = _CATEGORY_TO_FAMILY.get(e.category, e.category.lower())
+        counts = per_family.setdefault((s.agentId, fam), {}).setdefault(s.id, [0, 0])
+        counts[0] += 1
+        counts[1] += 1 if e.status == "BLOCKED" else 0
+
+    names = {a["id"]: a.get("name", a["id"]) for a in list_agents()}
+    rows: dict[str, dict] = {}
+    for (agent_id, fam), by_session in per_family.items():
+        # most recent session covering this family
+        sid = max(by_session, key=lambda k: by_id[k].startedAt)
+        total, blocked = by_session[sid]
+        row = rows.setdefault(agent_id, {
+            "agentId": agent_id,
+            "modelName": names.get(agent_id) or by_id[sid].agentName or agent_id,
+            "familyScores": {}, "probesEvaluated": 0, "probesResisted": 0,
+            "lastEvaluated": None,
+        })
+        row["familyScores"][fam] = round(blocked / total * 100, 1)
+        row["probesEvaluated"] += total
+        row["probesResisted"] += blocked
+        started = by_id[sid].startedAt.isoformat()
+        if not row["lastEvaluated"] or started > row["lastEvaluated"]:
+            row["lastEvaluated"] = started
+
+    result = []
+    for agent_id, row in rows.items():
+        score = round(row["probesResisted"] / row["probesEvaluated"] * 100, 1)
+        fs = row["familyScores"]
+        result.append({
+            **row,
+            "overallScore": score,
+            "asr": round(100 - score, 1),
+            "familiesCovered": len(fs),
+            "memoryResistance": fs.get("memory_poisoning"),
+            "planningResistance": fs.get("planning"),
+            "toolResistance": fs.get("tool_security"),
+            "totalRuns": sum(1 for s in sessions if s.agentId == agent_id),
+        })
+    # Models tested on all 8 families rank above partial runs; then by score, then by volume
+    for r in result:
+        r["partial"] = r["familiesCovered"] < len(_CATEGORY_TO_FAMILY)
+    result.sort(key=lambda r: (r["partial"], -r["overallScore"], -r["probesEvaluated"]))
+    for i, r in enumerate(result, start=1):
+        r["rank"] = i
+    untested = [
+        {"agentId": a_id, "modelName": name}
+        for a_id, name in names.items() if a_id not in rows
+    ]
+    return {"models": result, "untested": untested}
+
 
 @app.get("/api/sessions")
 async def list_sessions():
@@ -168,6 +285,7 @@ async def get_policy():
 
 @app.put("/api/policy")
 async def update_policy(request: Request):
+    require_admin(request)
     data = await request.json()
     yaml_content = data.get("yaml", "")
     with open("policy.yaml", "w") as f:
@@ -198,6 +316,7 @@ async def get_probe_count():
 
 @app.post("/api/probes")
 async def create_probe(request: Request):
+    require_admin(request)
     prisma = await get_db()
     data = await request.json()
     if "category" not in data or "promptText" not in data:
@@ -213,7 +332,8 @@ async def create_probe(request: Request):
     return probe.model_dump()
 
 @app.delete("/api/probes/{probe_id}")
-async def delete_probe(probe_id: str):
+async def delete_probe(probe_id: str, request: Request):
+    require_admin(request)
     prisma = await get_db()
     try:
         deleted = await prisma.customprobe.delete(where={"id": probe_id})
@@ -225,7 +345,8 @@ async def delete_probe(probe_id: str):
     return {"status": "deleted"}
 
 @app.put("/api/probes/{probe_id}/toggle")
-async def toggle_probe(probe_id: str):
+async def toggle_probe(probe_id: str, request: Request):
+    require_admin(request)
     prisma = await get_db()
     probe = await prisma.customprobe.find_unique(where={"id": probe_id})
     if not probe:
@@ -321,6 +442,7 @@ def _extract_nvidia_key(raw_value: str) -> str:
 
 @app.post("/api/config")
 async def update_runtime_config(request: Request):
+    require_admin(request)
     """Save NVIDIA API key or Ollama settings to .env and live process environment."""
     body = await request.json()
     updates: dict[str, str] = {}
@@ -490,6 +612,7 @@ async def finalize_scan_route(request: Request):
 # Proxy route
 @app.api_route("/api/proxy", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_request(request: Request):
+    require_admin(request)
     target_url = request.headers.get("x-target-url")
     if not target_url:
         return JSONResponse(status_code=400, content={"error": "Missing x-target-url header"})

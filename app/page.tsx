@@ -1,7 +1,7 @@
 "use client"
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { benchmarkDataService, BenchmarkRun, AttackFamilyMeta } from '@/lib/data-service'
+import { benchmarkDataService, BenchmarkRun, AttackFamilyMeta, ModelComparisonResult } from '@/lib/data-service'
 import { CardSkeleton, TableSkeleton } from '@/components/Skeletons'
 import EmptyState from '@/components/EmptyState'
 import { ShieldAlert, Play, BarChart2, Layers, Cpu, Award, ArrowUpRight } from 'lucide-react'
@@ -11,16 +11,19 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState<BenchmarkRun[]>([])
   const [families, setFamilies] = useState<AttackFamilyMeta[]>([])
   const [loading, setLoading] = useState(true)
+  const [rankedModels, setRankedModels] = useState<ModelComparisonResult[]>([])
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [statsData, sessionsData] = await Promise.all([
+        const [statsData, sessionsData, leaderboard] = await Promise.all([
           benchmarkDataService.fetchStats(),
           benchmarkDataService.fetchSessions(),
+          benchmarkDataService.fetchLeaderboard(),
         ])
         setStats(statsData)
         setSessions(sessionsData)
+        setRankedModels(leaderboard.models)
         setFamilies(benchmarkDataService.getAttackFamilies())
       } catch (err) {
         console.error('Failed to load dashboard data:', err)
@@ -41,7 +44,8 @@ export default function Dashboard() {
     )
   }
 
-  const latestScore = stats?.overallBlockRate ? (stats.overallBlockRate * 100).toFixed(1) : '94.2'
+  const topModel = rankedModels.find(m => !m.partial) ?? rankedModels[0]
+  const datasetProbeCount = benchmarkDataService.getAllProbes().length
 
   return (
     <div className="space-y-8">
@@ -90,8 +94,8 @@ export default function Dashboard() {
 
         <div className="research-card">
           <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">Core Probes</span>
-          <div className="text-2xl font-black text-[var(--primary)] mt-1.5 font-mono">{stats?.totalProbes || 128}</div>
-          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">Built-in dataset</span>
+          <div className="text-2xl font-black text-[var(--primary)] mt-1.5 font-mono">{datasetProbeCount}</div>
+          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">Built-in dataset · {stats?.totalProbes ?? 0} fired</span>
         </div>
 
         <div className="research-card">
@@ -108,14 +112,14 @@ export default function Dashboard() {
 
         <div className="research-card">
           <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">Models Evaluated</span>
-          <div className="text-2xl font-black text-indigo-500 mt-1.5 font-mono">5</div>
-          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">NIM & Local LLMs</span>
+          <div className="text-2xl font-black text-indigo-500 mt-1.5 font-mono">{rankedModels.length}</div>
+          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">With at least one run</span>
         </div>
 
         <div className="research-card border-l-4 border-l-emerald-500">
           <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">Top Security Score</span>
-          <div className="text-2xl font-black text-emerald-500 mt-1.5 font-mono">{latestScore}%</div>
-          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">Nemotron-3 Guard</span>
+          <div className="text-2xl font-black text-emerald-500 mt-1.5 font-mono">{topModel ? `${topModel.overallScore}%` : '—'}</div>
+          <span className="text-[11px] text-[var(--text-secondary)] mt-1 block">{topModel ? topModel.modelName : 'No runs yet'}</span>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useEffect } from 'react'
 import { BookOpen, Save, Copy, Check, ShieldCheck, Code } from 'lucide-react'
+import { adminHeaders, errorMessage } from '@/lib/admin-token'
 
 export default function PolicyDocumentationPage() {
   const [yaml, setYaml] = useState('')
@@ -32,20 +33,20 @@ export default function PolicyDocumentationPage() {
     try {
       const res = await fetch('/api/policy', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ yaml }),
       })
       if (res.ok) {
         setMessage('Policy saved successfully.')
       } else {
-        setMessage('Failed to save policy.')
+        setMessage(await errorMessage(res, 'Failed to save policy.'))
       }
     } catch (err) {
       setMessage('Error saving policy.')
       console.error(err)
     } finally {
       setSaving(false)
-      setTimeout(() => setMessage(''), 3000)
+      setTimeout(() => setMessage(''), 6000)
     }
   }
 

@@ -1,7 +1,8 @@
 "use client"
 import React, { useState, useEffect } from 'react'
-import { Settings, Database, Server, RefreshCw, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Settings, Database, Server, RefreshCw, KeyRound, CheckCircle2, AlertTriangle, Lock } from 'lucide-react'
 import { benchmarkDataService } from '@/lib/data-service'
+import { adminHeaders, getAdminToken, setAdminToken, errorMessage } from '@/lib/admin-token'
 
 interface AgentRow {
   id: string
@@ -24,6 +25,31 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [adminTokenInput, setAdminTokenInput] = useState('')
+  const [hasAdminToken, setHasAdminToken] = useState(false)
+  const [adminMessage, setAdminMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  const handleSaveAdminToken = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = adminTokenInput.trim()
+    setAdminToken(token)
+    setHasAdminToken(Boolean(token))
+    setAdminTokenInput('')
+    if (!token) {
+      setAdminMessage({ type: 'ok', text: 'Admin token removed from this browser.' })
+      return
+    }
+    try {
+      const res = await fetch('/api/admin/check', { headers: adminHeaders() })
+      setAdminMessage(
+        res.ok
+          ? { type: 'ok', text: 'Token accepted. Admin actions are unlocked in this browser.' }
+          : { type: 'err', text: await errorMessage(res, 'Token rejected.') }
+      )
+    } catch {
+      setAdminMessage({ type: 'err', text: 'Cannot reach the Ai-guard backend to check the token.' })
+    }
+  }
 
   const checkAll = async () => {
     setLoading(true)
@@ -39,6 +65,7 @@ export default function SettingsPage() {
     setOllamaBaseUrl(cfg.ollamaBaseUrl || 'http://localhost:11434')
     setOllamaModel(cfg.ollamaModel || 'llama3.2')
     setAgents(agentList || [])
+    setHasAdminToken(Boolean(getAdminToken()))
     setLoading(false)
   }
 
@@ -74,7 +101,7 @@ export default function SettingsPage() {
     if (Array.isArray(res.data?.agents)) {
       setAgents(res.data.agents)
     }
-    setSaveMessage({ type: 'ok', text: 'Configuration saved to .env and applied to live backend.' })
+    setSaveMessage({ type: 'ok', text: 'Configuration saved and applied to the backend.' })
   }
 
   return (
@@ -87,7 +114,7 @@ export default function SettingsPage() {
           </div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Settings & Infrastructure Health</h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Monitor FastAPI proxy connections, database status, & configure live LLM agent credentials.
+            Monitor backend and database health, & configure live LLM agent credentials.
           </p>
         </div>
 
@@ -107,11 +134,11 @@ export default function SettingsPage() {
               <Server className="h-4 w-4 text-[var(--primary)]" /> FastAPI Backend Service
             </span>
             <span className={`badge-semantic ${health?.status === 'ok' ? 'badge-success' : 'badge-danger'}`}>
-              {health?.status === 'ok' ? 'ONLINE (Port 8000)' : 'OFFLINE'}
+              {health?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
             </span>
           </div>
           <p className="text-xs text-[var(--text-secondary)]">
-            Proxies SSE evaluation streams & inspect endpoints via <code className="font-mono text-[11px]">http://127.0.0.1:8000</code>.
+            Runs benchmark probes against the target models and streams results to this page.
           </p>
         </div>
 
@@ -130,11 +157,49 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Admin token: unlocks saving keys, editing the policy and managing custom probes */}
+      <form onSubmit={handleSaveAdminToken} className="research-card space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+            <Lock className="h-4 w-4 text-[var(--primary)]" /> Admin Access
+          </h2>
+          <span className={`badge-semantic ${hasAdminToken ? 'badge-success' : 'badge-neutral'}`}>
+            {hasAdminToken ? 'Token saved in this browser' : 'No token'}
+          </span>
+        </div>
+        <p className="text-xs text-[var(--text-secondary)]">
+          Saving API keys, editing the security policy and managing custom probes need the admin token
+          configured on the server (<code className="font-mono text-[11px]">ADMIN_TOKEN</code>). It is stored only in this browser.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <input
+            type="password"
+            value={adminTokenInput}
+            onChange={(e) => setAdminTokenInput(e.target.value)}
+            placeholder={hasAdminToken ? 'Saved — enter a new token to replace, or leave empty to remove' : 'Enter admin token'}
+            autoComplete="off"
+            className="flex-1 px-3 py-2 rounded-md bg-[var(--surface-base)] border border-[var(--border-subtle)] text-xs font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-md bg-[var(--primary)] text-white text-xs font-semibold hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+          >
+            Save Token
+          </button>
+        </div>
+        {adminMessage && (
+          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${adminMessage.type === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {adminMessage.type === 'ok' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+            {adminMessage.text}
+          </span>
+        )}
+      </form>
+
       {/* Runtime Credentials & Local Ollama Config */}
       <form onSubmit={handleSaveConfig} className="research-card space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-[var(--primary)]" /> LLM Provider Credentials (.env)
+            <KeyRound className="h-4 w-4 text-[var(--primary)]" /> LLM Provider Credentials
           </h2>
           <span className={`badge-semantic ${nvidiaConfigured ? 'badge-success' : 'badge-warning'}`}>
             {nvidiaConfigured ? `NVIDIA Key Active (${nvidiaKeyMasked})` : 'NVIDIA Key Not Set'}
@@ -229,7 +294,7 @@ export default function SettingsPage() {
                     </td>
                     <td>
                       <span className={`badge-semantic ${ready ? 'badge-success' : 'badge-warning'}`}>
-                        {ready ? 'READY' : isOllama ? 'OLLAMA OFFLINE' : 'NEEDS API KEY'}
+                        {ready ? 'READY' : isOllama ? 'OFFLINE (LOCAL ONLY)' : 'NEEDS API KEY'}
                       </span>
                     </td>
                   </tr>

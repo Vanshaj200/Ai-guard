@@ -78,9 +78,9 @@ export default function Header({ onOpenSearch }: HeaderProps) {
           className="hidden md:block rounded-md border border-[var(--border-subtle)] bg-[var(--surface-base)] px-2.5 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
         >
           <option value="nemotron_3_ultra">Nemotron-3 Ultra (550B)</option>
-          <option value="nemotron_super_agent">Nemotron-3 Super (120B)</option>
-          <option value="llama3_3_70b_agent">Llama 3.3 70B Instruct</option>
-          <option value="deepseek_flash_agent">DeepSeek Flash 2.5</option>
+          <option value="nemotron_super_agent">Nemotron-3.5 Super (120B)</option>
+          <option value="llama3_3_70b_agent">Nemotron-3.5 Lightning (30B)</option>
+          <option value="deepseek_flash_agent">Nemotron-3.5 Bolt (Fast)</option>
           <option value="ollama_local_agent">Ollama Local Agent</option>
         </select>
 

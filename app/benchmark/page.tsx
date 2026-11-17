@@ -34,9 +34,9 @@ interface ProbeTraceItem {
 
 const FALLBACK_AGENTS: AgentItem[] = [
   { id: 'nemotron_3_ultra', name: 'Nemotron-3 Ultra (550B)', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'nvidia/nemotron-3-ultra-550b-a55b', configured: false },
-  { id: 'nemotron_super_agent', name: 'Nemotron-3 Super (120B)', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'nvidia/nemotron-3-super-120b-a12b', configured: false },
-  { id: 'llama3_3_70b_agent', name: 'Llama 3.3 70B Instruct', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'meta/llama-3.3-70b-instruct', configured: false },
-  { id: 'deepseek_flash_agent', name: 'DeepSeek V4 Flash', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'deepseek-ai/deepseek-v4-flash', configured: false },
+  { id: 'nemotron_super_agent', name: 'Nemotron-3.5 Super (120B)', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'nvidia/nemotron-3.5-super-vl-120b-a12b', configured: false },
+  { id: 'llama3_3_70b_agent', name: 'Nemotron-3.5 Lightning (30B)', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'nvidia/nemotron-3.5-lightning-30b-a3b', configured: false },
+  { id: 'deepseek_flash_agent', name: 'Nemotron-3.5 Bolt (Fast)', category: 'nvidia', badge: 'NVIDIA NIM', model_name: 'nvidia/nemotron-3.5-bolt-e4b', configured: false },
   { id: 'ollama_local_agent', name: 'Ollama Local Agent', category: 'ollama', badge: 'Local Ollama', model_name: 'llama3.2', configured: true },
 ]
 
@@ -165,7 +165,7 @@ export default function BenchmarkPage() {
         })
       } catch {
         setScanError(
-          'Cannot reach FastAPI backend at http://127.0.0.1:8000. Start both servers with "npm run dev:all" and try again.'
+          'Cannot reach the Ai-guard backend. It may be waking up (about 50 seconds on the free plan) — try again shortly.'
         )
         setBackendOnline(false)
         setRunning(false)
@@ -180,7 +180,7 @@ export default function BenchmarkPage() {
           else if (errBody?.error) detail = errBody.error
         } catch {
           if (res.status >= 500) {
-            detail = 'FastAPI backend is offline or returned a proxy error (HTTP 500). Ensure "npm run dev:all" is running.'
+            detail = 'The Ai-guard backend is offline or returned an error (HTTP 500). Try again shortly.'
             setBackendOnline(false)
           }
         }
@@ -471,7 +471,7 @@ export default function BenchmarkPage() {
             }`}
           >
             🛡️ NVIDIA NIM Guards
-            <span className="block text-[10px] font-normal text-[var(--text-muted)] mt-1">Nemotron, Llama-3.3, DeepSeek</span>
+            <span className="block text-[10px] font-normal text-[var(--text-muted)] mt-1">Nemotron Ultra, Super, Lightning, Bolt</span>
           </button>
 
           <button
